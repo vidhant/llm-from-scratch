@@ -16,6 +16,7 @@
 2. Increasing the number of attention heads reduces loss, converges faster (perhaps with a ceiling?)
 3. Weight-splitting MHA is better at memory utilization than stacking multiple heads
 4. Vanishing gradients if we don't scale attention scores by square root of keys matrix.
+5. **Logit lens - Prove that "Reasoning" happens in the middle layers, while "Grammar" happens in the later layers.**
 
 ## Blog ideas
 
