@@ -2,7 +2,7 @@
 # coding: utf-8
 
 
-# see the colab step2-attention.ipynb for descriptions and examples for 
+# see the colab step2-attention.ipynb for descriptions and examples for
 # invoking the classes.
 import torch
 
@@ -27,6 +27,7 @@ class SelfAttention_v1(torch.nn.Module):
 
         return context_vec
 
+
 class SelfAttention_v2(torch.nn.Module):
 
     def __init__(self, d_in, d_out, qkv_bias=False):
@@ -38,7 +39,7 @@ class SelfAttention_v2(torch.nn.Module):
     def forward(self, x):
         queries = self.W_query(x)
         keys = self.W_key(x)
-        values =  self.W_value(x)
+        values = self.W_value(x)
 
         attn_scores = queries @ keys.T
         attn_weights = torch.softmax(attn_scores / keys.shape[-1] ** 0.5, dim=-1)
@@ -92,7 +93,7 @@ class CausalAttention(torch.nn.Module):
         # the trailing underscore ensures the operation is performed in-place, avoiding
         # unnecessary memoery copies
 
-        attn_weights = torch.softmax(attn_scores / keys.shape[-1] ** 0.5, dim=-1)
+        attn_weights = torch.softmax(attn_scores / k.shape[-1] ** 0.5, dim=-1)
         attn_weights = self.dropout(attn_weights)
 
         context_vector = attn_weights @ v
@@ -120,8 +121,7 @@ class MultiHeadAttentionWrapper(torch.nn.Module):
 class MultiHeadAttention(torch.nn.Module):
     def __init__(self, d_in, d_out, context_length, dropout, num_heads, qkv_bias=False):
         super().__init__()
-        assert (d_out % num_heads == 0), \
-            "d_out must be divisible by num_heads"
+        assert d_out % num_heads == 0, "d_out must be divisible by num_heads"
 
         self.d_out = d_out
         self.num_heads = num_heads
@@ -130,24 +130,24 @@ class MultiHeadAttention(torch.nn.Module):
         self.W_query = torch.nn.Linear(d_in, d_out, bias=qkv_bias)
         self.W_key = torch.nn.Linear(d_in, d_out, bias=qkv_bias)
         self.W_value = torch.nn.Linear(d_in, d_out, bias=qkv_bias)
-        self.out_proj = torch.nn.Linear(d_out, d_out)  # Linear layer to combine head outputs
+        self.out_proj = torch.nn.Linear(
+            d_out, d_out
+        )  # Linear layer to combine head outputs
         self.dropout = torch.nn.Dropout(dropout)
         self.register_buffer(
-            "mask",
-            torch.triu(torch.ones(context_length, context_length),
-                       diagonal=1)
+            "mask", torch.triu(torch.ones(context_length, context_length), diagonal=1)
         )
 
     def forward(self, x):
         b, num_tokens, d_in = x.shape
 
-        keys = self.W_key(x) # Shape: (b, num_tokens, d_out)
+        keys = self.W_key(x)  # Shape: (b, num_tokens, d_out)
         queries = self.W_query(x)
         values = self.W_value(x)
 
         # We implicitly split the matrix by adding a `num_heads` dimension
         # Unroll last dim: (b, num_tokens, d_out) -> (b, num_tokens, num_heads, head_dim)
-        keys = keys.view(b, num_tokens, self.num_heads, self.head_dim) 
+        keys = keys.view(b, num_tokens, self.num_heads, self.head_dim)
         values = values.view(b, num_tokens, self.num_heads, self.head_dim)
         queries = queries.view(b, num_tokens, self.num_heads, self.head_dim)
 
@@ -165,14 +165,14 @@ class MultiHeadAttention(torch.nn.Module):
         # Use the mask to fill attention scores
         attn_scores.masked_fill_(mask_bool, -torch.inf)
 
-        attn_weights = torch.softmax(attn_scores / keys.shape[-1]**0.5, dim=-1)
+        attn_weights = torch.softmax(attn_scores / keys.shape[-1] ** 0.5, dim=-1)
         attn_weights = self.dropout(attn_weights)
 
         # Shape: (b, num_tokens, num_heads, head_dim)
-        context_vec = (attn_weights @ values).transpose(1, 2) 
+        context_vec = (attn_weights @ values).transpose(1, 2)
 
         # Combine heads, where self.d_out = self.num_heads * self.head_dim
         context_vec = context_vec.contiguous().view(b, num_tokens, self.d_out)
-        context_vec = self.out_proj(context_vec) # optional projection
+        context_vec = self.out_proj(context_vec)  # optional projection
 
         return context_vec
