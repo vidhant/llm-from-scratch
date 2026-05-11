@@ -138,7 +138,7 @@ class MultiHeadAttention(torch.nn.Module):
             "mask", torch.triu(torch.ones(context_length, context_length), diagonal=1)
         )
 
-    def forward(self, x):
+    def forward(self, x, kv_cache=None):
         b, num_tokens, d_in = x.shape
 
         keys = self.W_key(x)  # Shape: (b, num_tokens, d_out)
@@ -156,11 +156,24 @@ class MultiHeadAttention(torch.nn.Module):
         queries = queries.transpose(1, 2)
         values = values.transpose(1, 2)
 
+        # If there's a KV cache from a previous forward pass, we prepend it
+        # to our current keys and values. This avoids recalculating attention
+        # for every token in the sequence. This is mainly useful during inference.
+        if kv_cache is not None:
+            keys = torch.cat([kv_cache["key"], keys], dim=2)
+            values = torch.cat([kv_cache["value"], values], dim=2)
+
+        # Update (or create) the cache for the next forward pass
+        kv_cache = {"key": keys, "value": values}
+
         # Compute scaled dot-product attention (aka self-attention) with a causal mask
         attn_scores = queries @ keys.transpose(2, 3)  # Dot product for each head
 
-        # Original mask truncated to the number of tokens and converted to boolean
-        mask_bool = self.mask.bool()[:num_tokens, :num_tokens]
+        # With KV-cache, keys are longer than queries (past + current tokens).
+        # Crop mask to (num_tokens rows, total_tokens cols) to match attn_scores and
+        # so that each query can attend to all past keys but not future ones.
+        total_tokens = keys.shape[2]
+        mask_bool = self.mask.bool()[:num_tokens, :total_tokens]
 
         # Use the mask to fill attention scores
         attn_scores.masked_fill_(mask_bool, -torch.inf)
@@ -175,4 +188,4 @@ class MultiHeadAttention(torch.nn.Module):
         context_vec = context_vec.contiguous().view(b, num_tokens, self.d_out)
         context_vec = self.out_proj(context_vec)  # optional projection
 
-        return context_vec
+        return context_vec, kv_cache

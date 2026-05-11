@@ -23,12 +23,12 @@ class TransformerBlock(nn.Module):
         self.layerNorm2 = LayerNorm(cfg["emb_dim"])
         self.ff = FeedForward(cfg)
 
-    def forward(self, x):
+    def forward(self, x, kv_cache=None):
         # x will have the shape, [batch, num_tokens, x]
 
         original_x = x  # shortcut connection for attention block
         x = self.layerNorm1(x)
-        x = self.mha(x)
+        x, kv_cache = self.mha(x, kv_cache)
         x = self.dropout(x)
         x = x + original_x
 
@@ -38,4 +38,4 @@ class TransformerBlock(nn.Module):
         x = self.dropout(x)
         x = x + mhaed_x
 
-        return x
+        return x, kv_cache
