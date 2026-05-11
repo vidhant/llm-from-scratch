@@ -14,10 +14,9 @@ This repository contains the implementation of a 124M parameter GPT architecture
 
 ## Model Architecture
 
+![](images/gpt-2-architecture.png)
+
 https://excalidraw.com/#json=kEtqwgDj8AgcazuEOskfg,y6R5g3fUyITXRsBLGTsqIQ
-
-
-* 
 
 ## Key Params
 
