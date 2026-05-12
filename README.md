@@ -71,7 +71,7 @@ Compared the inference time, with and without KV-caching, for a small 124M param
 
 **What actually drives speedup?**
 
-Counterintuitively, `total_tokens = prompt_len + gen_len` is *not* the right predictor. The primary driver is **gen_len ($G$)**, because savings only accumulate during the $G$ decode steps — the prompt is processed once in both approaches and largely cancels in the ratio. Verified empirically:
+Counterintuitively, `total_tokens = prompt_len + gen_len` is *not* the right predictor. The primary driver is **gen_len ($G$)**, because savings only accumulate during the $G$ decode steps, the prompt is processed once in both approaches and largely cancels in the ratio. Verified empirically:
 
 | Config (P, G) | Total tokens | Theoretical speedup |
 |---|---|---|
