@@ -26,9 +26,12 @@ class GPTModel(nn.Module):
     def forward(self, input, kv_cache=None):
         batch_size, seq_len = input.shape
         sem_embeds = self.sem_emb(input)
-        # Create position indices [0, 1, ..., seq_len-1] and
-        # look up their learned embeddings
-        pos_embeds = self.pos_emb(torch.arange(seq_len, device=input.device))
+        # With KV-cache, tokens we're processing start AFTER all cached tokens,
+        # so offset positions by the cached sequence length.
+        pos_offset = kv_cache[0]["key"].shape[2] if kv_cache is not None else 0
+        pos_embeds = self.pos_emb(
+            torch.arange(pos_offset, pos_offset + seq_len, device=input.device)
+        )
         # Combine the semantic and positional embeddings
         x = sem_embeds + pos_embeds
         x = self.dropout(x)
