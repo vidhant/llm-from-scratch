@@ -57,23 +57,39 @@ Yes, the generated output doesn't quite match up to a modern LLM, but:
 
 ### 1. KV Caching
 
+#### KV Caching makes inference faster
+
 Compared the inference time, with and without KV-caching, for a small 124M parameter GPT-2 model.
-
-There was almost a 5x speed-up when generating 100 tokens from a 5-token prompt.
-
-| Method    | Total Time | Tokens/Sec | Speedup |
-|------------|-------------|-------------|----------|
-| Standard   | 19.22s      | ~5.2 tps    | 1.0x     |
-| KV-Cache   | 3.97s       | ~25.1 tps   | 4.8x     |
-
 
 ![](images/experiments-1.png)
 Observations:
-* In the non KV-cache method, the time to generate each token increases, whereas in the KV cache one, the time to generate each token remains the same
+* For the standard method (non-KV cache): The time taken to generate each subsequent token increases linearly because the model must re-process the entire growing sequence (prompt + previously generated tokens) at every step. This leads to $O(n^2)$ complexity relative to the sequence length.
+* For the KV Cache method: The time to generate each token remains nearly constant. By storing and reusing the Key ($K$) and Value ($V$) tensors for past tokens, the model only needs to compute the $Q, K, V$ for the single new token, maintaining $O(n)$ complexity.
+* Theoretically, the performance gains from KV caching become more significant as the generation length increases
+* However, there is an anomaly based on our empirical evaluation - the performance gain from prompt=200, gen=50 tokens (8.94x) is more than the gain from prompt=50, gen=200 tokens (7.08x). Ideally, we would expect the opposite - as we generate more and more tokens, KV caching should shine more and more, however, in this case that is not the case. This is likely because of the per-step overhead in the decode step for things like: Python loop iteration, memory allocation for the growing KV cache, etc. KV-cache's FLOP cost per step is small, so the fixed overhead is a larger fraction of each step's total cost. This dilutes the speedup ratio when the number of generated tokens ($G$) is large.
 
 Downsides
-* The bottleneck moves from inference time to how fast we can move the KV cache around on the GPU. Solution - Flash Attention, which I try next
+* The standard method is compute-bound (doing the same math over and over), whereas KV caching becomes memory-bandwidth bound (moving the stored cache from VRAM to the processor). Solution - Flash Attention, which I try next.
+
+| Feature | Standard Inference | KV-Cache Inference |
+|---|---|---|
+| Computation | Recomputes all previous tokens | Computes only the new token |
+| Time per Token | Increases per step | Constant |
+| Complexity | $O(n^2)$ | $O(n)$ |
+| Primary Bottleneck | GPU Compute (FLOPs) | Memory Bandwidth (IO) |
 ---
+
+#### KV Cache costs Memory
+
+##### Theoretical size for the 124M param model
+Per token = `2 tensors (K+V) * 12 layers * 12 heads * 768/12 embedding dimension per head * 4 bytes per float = 72 KB / token`
+
+For full context (256 tokens) = `72KB * 256 = 18 MB (approx)`
+
+![](images/experiments-2.png)
+
+* The KV cache is fully predictable
+* KV cache size grows linearly with sequence length, up to a maximum of `context_length` tokens.
 
 ## Attention Module
 
