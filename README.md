@@ -3,7 +3,7 @@
 I trained a 124M parameter GPT-2 model from scratch on my 2019, 1.4 GHz Quad-Core Intel Core i5 Macbook Pro. 
 
 Further, I:
-* Implemented KV-caching and ran some experiments to unpack its compute gains and memory costs
+* Implemented KV-caching and ran experiments to unpack its compute gains and memory costs
 * Implemented speculative decoding to understand its inference boost
 * Created a visualizer to showcase what the model was "thinking" at each step as it processed an input
 
@@ -52,7 +52,7 @@ Yes, the generated output doesn't quite match up to a modern LLM, but:
 
 #### KV Caching makes inference faster
 
-Compared the inference time, with and without KV-caching, for a small 124M parameter GPT-2 model.
+Compared the inference time, with and without KV-caching, for the small 124M parameter GPT-2 model.
 
 ![](images/experiments-1.png)
 
@@ -62,7 +62,22 @@ Compared the inference time, with and without KV-caching, for a small 124M param
 
 **What actually drives speedup?**
 
-Counterintuitively, `total_tokens = prompt_len + gen_len` is *not* the right predictor. The primary driver is **gen_len ($G$)**, because savings only accumulate during the $G$ decode steps, the prompt is processed once in both approaches and largely cancels in the ratio. Verified empirically:
+The theoretical speedup is the ratio of total FLOPs (attention cost $\propto$ sequence\_length² per step):
+
+$$\text{Speedup} = \frac{\overbrace{\displaystyle\sum_{i=0}^{G-1}(P+i)^2}^{\text{standard inference}}}{\underbrace{\displaystyle P^2 + \sum_{i=0}^{G-1}(P+i)}_{\text{KV-cache inference}}}$$
+
+Expanding in closed form makes the dependence on $P$ and $G$ explicit:
+
+$$\text{Standard} = \underbrace{G P^2}_{\text{prompt, paid }G\times} +\ \underbrace{P G(G-1)}_{\text{cross}} +\ \underbrace{\tfrac{G(G-1)(2G-1)}{6}}_{\sim\,G^3/3}$$
+
+$$\text{KV-cache} = \underbrace{P^2}_{\text{prefill (once)}} +\ \underbrace{G P}_{\text{cross}} +\ \underbrace{\tfrac{G(G-1)}{2}}_{\sim\,G^2/2}$$
+
+Key implications:
+* **Increasing $G$**: numerator grows $\sim G^3$; denominator only $\sim G^2$ → speedup scales roughly $\propto G$.
+* **Increasing $P$**: adds $GP^2$ to the numerator (amplified $G\times$!) vs just $P^2$ to the denominator → larger prompts also widen the gap, but less dramatically than longer generation.
+* **`total_tokens` is misleading**: two configs with the same $P+G$ can yield very different speedups depending on the $P$/$G$ split.
+
+Applying the formula to representative configs:
 
 | Config (P, G) | Total tokens | Theoretical speedup |
 |---|---|---|
