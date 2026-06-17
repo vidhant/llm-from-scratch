@@ -170,7 +170,7 @@ I generated 50 tokens from a long, grounded prompt and swept two knobs: the samp
 | 1.0  | 5   | 0.347      | 19                | 1.38       | 0.75×     |
 | 1.0  | 6   | 0.203      | 23                | 1.18       | 0.64×     |
 
-![](speculative_decoding_speedup.png)
+![](sspeculative-decoding-results-annotated.png)
 
 **Average speedup by temperature:**
 
@@ -182,10 +182,10 @@ I generated 50 tokens from a long, grounded prompt and swept two knobs: the samp
 
 #### Findings
 
-- **The speedup is real when the two models agree often, and that mostly happens at low temperature.** At T=0 it averaged 1.48x and peaked at 1.91x (K=6), where the draft's guesses were good enough that 50 tokens needed only 9 target forward passes instead of 50.
-- **It's a poor fit for creative, high-temperature generation.** At T=1.0 the acceptance rate fell to roughly 0.2 to 0.46 and speculative decoding was actually _slower_ than the baseline (0.82x average). A higher temperature makes both models sample more randomly, so they agree less often, the draft's guesses get rejected, and all of that draft compute is wasted.
-- **A bigger lookahead K is not automatically better.** A large K only pays off when acceptance stays high. At T=0 a large K helped (K=6 was the fastest run), but at T=0.7 that same K=6 dropped to 0.70x, because every rejected guess throws away all K of the draft passes that produced it.
-- **The number of target forward passes tracked the speedup closely.** The target pass is the expensive step, so fewer of them means faster generation, and K=6 at T=0 cleared 50 tokens in just 9 passes. The catch is that a large K also adds draft passes, so there is a sweet spot rather than a 'bigger is better' rule.
+- **The speedup is real when the two models agree often, and that mostly happens at low temperature:** At T=0 it averaged 1.48x and peaked at 1.91x (K=6), where the draft's guesses were good enough that 50 tokens needed only 9 target forward passes instead of 50.
+- **It's a poor fit for creative, high-temperature generation:** At T=1.0 the acceptance rate fell to roughly 0.2 to 0.46 and speculative decoding was actually _slower_ than the baseline (0.82x average). A higher temperature makes both models sample more randomly, so they agree less often, the draft's guesses get rejected, and all of that draft compute is wasted.
+- **A bigger lookahead K is not automatically better:** A large K only pays off when acceptance stays high. At T=0 a large K helped (K=6 was the fastest run), but at T=0.7 that same K=6 dropped to 0.70x, because every rejected guess throws away all K of the draft passes that produced it.
+- **Target forward passes are the main driver of the speedup:** The target pass is the expensive step, so cutting the number of them down is the main win, and K=6 at T=0 cleared 50 tokens in just 9 target passes. However, the draft isn't free either: each iteration runs K draft passes, so a large K that doesn't keep acceptance high just piles up wasted draft compute. K=5 with T=0 had fewer target passes than K=2 (16 vs 22) but a slower result (1.14x vs 1.41x) because it ran far more draft passes. So the best K is a sweet spot between target savings and draft overhead and bigger is not always better in this case.
 
 #### Future improvements
 
