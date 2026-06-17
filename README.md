@@ -170,7 +170,7 @@ I generated 50 tokens from a long, grounded prompt and swept two knobs: the samp
 | 1.0  | 5   | 0.347      | 19                | 1.38       | 0.75×     |
 | 1.0  | 6   | 0.203      | 23                | 1.18       | 0.64×     |
 
-![](sspeculative-decoding-results-annotated.png)
+![](speculative-decoding-results-annotated.png)
 
 **Average speedup by temperature:**
 
